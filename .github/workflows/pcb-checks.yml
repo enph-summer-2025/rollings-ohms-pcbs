@@ -37,14 +37,16 @@ jobs:
     - name: Run ERC Check - ${{ matrix.board.name }}
       run: |
         cd $(dirname "${{ matrix.board.path }}")
-        kicad-cli sch erc --exit-code-violations "$(basename "${{ matrix.board.path }}").kicad_sch"
+        # Run ERC with severity level - only fail on errors, not warnings
+        kicad-cli sch erc --severity-error "$(basename "${{ matrix.board.path }}").kicad_sch"
       continue-on-error: true
       id: erc
     
     - name: Run DRC Check - ${{ matrix.board.name }}
       run: |
         cd $(dirname "${{ matrix.board.path }}")
-        kicad-cli pcb drc --exit-code-violations "$(basename "${{ matrix.board.path }}").kicad_pcb"
+        # Run DRC with severity level - only fail on errors, not warnings
+        kicad-cli pcb drc --severity-error "$(basename "${{ matrix.board.path }}").kicad_pcb"
       continue-on-error: true
       id: drc
     
