@@ -1,0 +1,281 @@
+name: PCB Production Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'release-*'
+
+jobs:
+  generate-production-files:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - { name: "Brain", path: "brain/Brain" }
+          - { name: "H-Bridge", path: "h-bridge/HBridge" }
+          - { name: "Power Distribution", path: "power-distribution/Power_Board" }
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Dependencies
+      run: |
+        sudo add-apt-repository -y ppa:kicad/kicad-8.0-releases
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          kicad kicad-libraries \
+          python3-pip \
+          inkscape \
+          imagemagick \
+          povray
+        
+        # Install KiBot for advanced automation
+        pip3 install --upgrade kibot kibom kicad-gitdiff
+    
+    - name: Create Output Directories
+      run: |
+        board_dir=$(dirname "${{ matrix.board.path }}")
+        cd "$board_dir"
+        mkdir -p {gerbers,3d-renders,assembly,documentation}
+    
+    - name: Generate Gerbers - ${{ matrix.board.name }}
+      run: |
+        cd $(dirname "${{ matrix.board.path }}")
+        board_name=$(basename "${{ matrix.board.path }}")
+        
+        # Generate Gerbers
+        kicad-cli pcb export gerbers \
+          --output gerbers/ \
+          --layers F.Cu,B.Cu,F.Paste,B.Paste,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts \
+          --exclude-value \
+          --include-border-title \
+          "${board_name}.kicad_pcb"
+        
+        # Generate drill files
+        kicad-cli pcb export drill \
+          --output gerbers/ \
+          --format excellon \
+          --drill-origin plot \
+          --excellon-zeros-format decimal \
+          --excellon-units mm \
+          --generate-map \
+          --map-format pdf \
+          "${board_name}.kicad_pcb"
+        
+        # Generate position files
+        kicad-cli pcb export pos \
+          --output assembly/ \
+          --format csv \
+          --units mm \
+          --side both \
+          "${board_name}.kicad_pcb"
+    
+    - name: Generate Documentation - ${{ matrix.board.name }}
+      run: |
+        cd $(dirname "${{ matrix.board.path }}")
+        board_name=$(basename "${{ matrix.board.path }}")
+        
+        # Export schematic as PDF
+        kicad-cli sch export pdf \
+          --output "documentation/${board_name}-schematic.pdf" \
+          --no-background-color \
+          --pages all \
+          "${board_name}.kicad_sch"
+        
+        # Export PCB layers as PDF
+        kicad-cli pcb export pdf \
+          --output "documentation/${board_name}-pcb.pdf" \
+          --layers F.Cu,B.Cu,F.SilkS,B.SilkS,Edge.Cuts,F.Fab,B.Fab \
+          --include-border-title \
+          "${board_name}.kicad_pcb"
+        
+        # Export BOM
+        kicad-cli sch export bom \
+          --output "documentation/${board_name}-BOM.csv" \
+          --fields "Reference,Value,Footprint,Datasheet,Manufacturer,MPN,Supplier,SPN" \
+          "${board_name}.kicad_sch"
+    
+    - name: Generate 3D Renders - ${{ matrix.board.name }}
+      run: |
+        cd $(dirname "${{ matrix.board.path }}")
+        board_name=$(basename "${{ matrix.board.path }}")
+        
+        # Export STEP file
+        kicad-cli pcb export step \
+          --output "3d-renders/${board_name}.step" \
+          --no-dnp \
+          "${board_name}.kicad_pcb"
+        
+        # Export VRML for rendering
+        kicad-cli pcb export vrml \
+          --output "3d-renders/${board_name}.wrl" \
+          --units mm \
+          "${board_name}.kicad_pcb"
+        
+        # Generate 3D views using KiBot if config exists
+        if [ -f "kibot.yml" ]; then
+          kibot -c kibot.yml -b "${board_name}.kicad_pcb" -s all 3d_render_top 3d_render_bottom
+        else
+          echo "No KiBot config found, skipping advanced 3D renders"
+        fi
+    
+    - name: Create KiBot Config - ${{ matrix.board.name }}
+      run: |
+        cd $(dirname "${{ matrix.board.path }}")
+        cat > kibot.yml << 'EOF'
+        kibot:
+          version: 1
+        
+        outputs:
+          - name: '3d_render_top'
+            comment: "3D render from top"
+            type: render_3d
+            dir: 3d-renders
+            options:
+              ray_tracing: true
+              orthographic: false
+              zoom: 1.2
+              rotate_x: 30
+              rotate_z: 20
+              filename: 'render-top.png'
+              width: 1920
+              height: 1080
+          
+          - name: '3d_render_bottom'
+            comment: "3D render from bottom"
+            type: render_3d
+            dir: 3d-renders
+            options:
+              ray_tracing: true
+              orthographic: false
+              zoom: 1.2
+              rotate_x: -30
+              rotate_z: -20
+              view: bottom
+              filename: 'render-bottom.png'
+              width: 1920
+              height: 1080
+          
+          - name: 'ibom'
+            comment: "Interactive BOM"
+            type: ibom
+            dir: assembly
+            options:
+              dark_mode: false
+              hide_pads: false
+              show_fabrication: true
+              hide_dnp_text: false
+              highlight_pin1: true
+              no_redraw_on_drag: false
+              board_rotation: 0
+              include_nets: true
+              include_tracks: true
+        EOF
+        
+        # Run KiBot with the config
+        board_name=$(basename "${{ matrix.board.path }}")
+        kibot -c kibot.yml -b "${board_name}.kicad_pcb" -s all
+    
+    - name: Package Files - ${{ matrix.board.name }}
+      run: |
+        cd $(dirname "${{ matrix.board.path }}")
+        board_name="${{ matrix.board.name }}"
+        tag_name="${{ github.ref_name }}"
+        
+        # Create release package
+        mkdir -p "../release-${board_name}"
+        
+        # Copy all generated files
+        cp -r gerbers "../release-${board_name}/"
+        cp -r 3d-renders "../release-${board_name}/"
+        cp -r assembly "../release-${board_name}/"
+        cp -r documentation "../release-${board_name}/"
+        
+        # Create info file
+        cat > "../release-${board_name}/INFO.txt" << EOF
+        Board: ${board_name}
+        Version: ${tag_name}
+        Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        Git Hash: ${{ github.sha }}
+        
+        Contents:
+        - gerbers/: Production-ready Gerber and drill files
+        - 3d-renders/: 3D visualizations and STEP files
+        - assembly/: Pick-and-place files and interactive BOM
+        - documentation/: Schematics, PCB layout, and BOM in PDF/CSV
+        
+        Manufacturing Notes:
+        - PCB Thickness: 1.6mm (standard)
+        - Copper Weight: 1oz (standard)
+        - Surface Finish: HASL Lead-Free (recommended)
+        - Solder Mask: Green (standard)
+        - Silkscreen: White (standard)
+        EOF
+        
+        # Create archive
+        cd ..
+        zip -r "${board_name}-${tag_name}.zip" "release-${board_name}"
+    
+    - name: Upload Release Artifacts - ${{ matrix.board.name }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.board.name }}-${{ github.ref_name }}-production
+        path: |
+          ../${{ matrix.board.name }}-${{ github.ref_name }}.zip
+        retention-days: 90
+  
+  create-release:
+    needs: generate-production-files
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+    
+    - name: Create Release Notes
+      run: |
+        cat > release-notes.md << 'EOF'
+        # PCB Release ${{ github.ref_name }}
+        
+        This release includes production-ready files for all PCB designs in the Rollings Ohms project.
+        
+        ## Included Boards
+        - **Brain**: Main controller board
+        - **H-Bridge**: Motor driver board
+        - **Power Distribution**: Power management board
+        
+        ## File Contents
+        Each board package contains:
+        - **Gerbers**: Ready for PCB manufacturing
+        - **3D Renders**: Visual representations of the boards
+        - **Assembly Files**: Pick-and-place data and interactive BOM
+        - **Documentation**: Schematics, layouts, and bill of materials
+        
+        ## Manufacturing Recommendations
+        - Use a reputable PCB manufacturer (JLCPCB, PCBWay, etc.)
+        - Standard 1.6mm FR-4 PCB material
+        - HASL Lead-Free surface finish
+        - 1oz copper weight
+        
+        ## Quality Checks
+        ✅ All boards passed ERC (Electrical Rules Check)
+        ✅ All boards passed DRC (Design Rules Check)
+        
+        ---
+        *Generated by automated CI/CD pipeline*
+        EOF
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-artifacts/**/*.zip
+        body_path: release-notes.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

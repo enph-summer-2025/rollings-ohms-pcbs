@@ -33,6 +33,33 @@ fp-info-cache
 *.xml
 *.csv
 
+# CI/CD generated files
+gerbers/
+3d-renders/
+assembly/
+documentation/
+reports/
+release-*/
+kibot.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+
 # Archived Backups (KiCad 6.0)
 **/*-backups/*.zip
 
