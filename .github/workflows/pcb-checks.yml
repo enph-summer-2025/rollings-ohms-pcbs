@@ -55,19 +55,13 @@ jobs:
         kicad-cli pcb drc --format json --output "reports/drc-report.json" "$(basename "${{ matrix.board.path }}").kicad_pcb" || true
         kicad-cli pcb drc --output "reports/drc-report.txt" "$(basename "${{ matrix.board.path }}").kicad_pcb" || true
     
-    - name: Set Report Path
-      if: always()
-      id: report-path
-      run: |
-        board_dir=$(dirname "${{ matrix.board.path }}")
-        echo "report_dir=${board_dir}/reports" >> $GITHUB_OUTPUT
-    
     - name: Upload Reports - ${{ matrix.board.name }}
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.board.name }}-reports
-        path: ${{ steps.report-path.outputs.report_dir }}
+        path: |
+          ${{ contains(matrix.board.name, 'Brain') && 'brain/reports' || contains(matrix.board.name, 'H-Bridge') && 'h-bridge/reports' || 'power-distribution/reports' }}
     
     - name: Comment PR with Results
       if: github.event_name == 'pull_request' && always()
