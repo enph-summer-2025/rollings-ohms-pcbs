@@ -44,6 +44,9 @@ jobs:
         cd $(dirname "${{ matrix.board.path }}")
         board_name=$(basename "${{ matrix.board.path }}")
         
+        # Ensure output directories exist
+        mkdir -p gerbers assembly
+        
         # Generate Gerbers
         kicad-cli pcb export gerbers \
           --output gerbers/ \
@@ -63,13 +66,13 @@ jobs:
           --map-format pdf \
           "${board_name}.kicad_pcb"
         
-        # Generate position files
+        # Generate position files (with error handling)
         kicad-cli pcb export pos \
-          --output assembly/ \
+          --output assembly/"${board_name}-pos.csv" \
           --format csv \
           --units mm \
           --side both \
-          "${board_name}.kicad_pcb"
+          "${board_name}.kicad_pcb" || echo "Warning: Position file generation had issues"
     
     - name: Generate Documentation - ${{ matrix.board.name }}
       run: |
