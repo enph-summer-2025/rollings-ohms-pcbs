@@ -23,7 +23,16 @@ jobs:
       run: |
         sudo add-apt-repository -y ppa:kicad/kicad-9.0-releases
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends kicad kicad-libraries
+        sudo apt-get install -y kicad kicad-symbols kicad-footprints kicad-packages3d kicad-templates
+        
+       
+        echo "KiCad version:"
+        kicad-cli version
+        
+        echo "Available symbol libraries:"
+        ls -la /usr/share/kicad/symbols/ | head -10
+        echo "Available footprint libraries:"
+        ls -la /usr/share/kicad/footprints/ | head -10
     
     - name: Run ERC Check - ${{ matrix.board.name }}
       run: |
