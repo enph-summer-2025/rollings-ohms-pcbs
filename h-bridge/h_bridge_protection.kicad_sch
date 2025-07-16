@@ -4,6 +4,13 @@
 	(generator_version "9.0")
 	(uuid "05e69d45-ad38-45ad-bec6-7de730c257e3")
 	(paper "A4")
+	(title_block
+		(title "H Bridge")
+		(date "2025-07-15")
+		(rev "Rev 2")
+		(company "The Rolling Ohms")
+		(comment 1 "Team 6 ENPH 253 2025")
+	)
 	(lib_symbols
 		(symbol "ENPH:VN2222LLRLRAG"
 			(pin_names

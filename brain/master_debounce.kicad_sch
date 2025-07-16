@@ -3,7 +3,14 @@
 	(generator "eeschema")
 	(generator_version "9.0")
 	(uuid "b2fe364e-db17-432a-8d8d-5872eb4e34bf")
-	(paper "A4")
+	(paper "A3")
+	(title_block
+		(title "Brain Board")
+		(date "2025-07-08")
+		(rev "Rev 1")
+		(company "The Rolling Ohms")
+		(comment 1 "Team 6 - ENPH 253 2025")
+	)
 	(lib_symbols
 		(symbol "Comparator:LM311"
 			(pin_names

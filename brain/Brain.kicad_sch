@@ -9,6 +9,7 @@
 		(date "2025-07-08")
 		(rev "Rev 1")
 		(company "The Rolling Ohms")
+		(comment 1 "Team 6 - ENPH 253 2025")
 	)
 	(lib_symbols
 		(symbol "Connector_Generic:Conn_01x02"
@@ -9951,7 +9952,7 @@
 		)
 		(uuid "e48e9159-7687-46f5-9aa1-5a309e97da69")
 	)
-	(text "Random Shit"
+	(text "Random Stuff"
 		(exclude_from_sim no)
 		(at 264.922 137.922 0)
 		(effects
